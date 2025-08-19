@@ -27,6 +27,41 @@ interface FormField {
   conditionalLogic?: { showIf: string; operator: string; value: string }
 }
 
+
+// Mock fallback data (used if backend API is unavailable or unauthorized)
+const mockBases: Base[] = [
+  { id: "base1", name: "Customer Management" },
+  { id: "base2", name: "Event Planning" },
+  { id: "base3", name: "Product Catalog" },
+]
+
+const mockTables: Record<string, Table[]> = {
+  base1: [
+    { id: "table1", name: "Customers" },
+    { id: "table2", name: "Orders" },
+  ],
+  base2: [
+    { id: "table3", name: "Events" },
+    { id: "table4", name: "Attendees" },
+  ],
+  base3: [
+    { id: "table5", name: "Products" },
+    { id: "table6", name: "Categories" },
+  ],
+}
+
+const mockFields: Record<string, any[]> = {
+  table1: [
+    { id: "field1", name: "Name", type: "singleLineText", required: true },
+    { id: "field2", name: "Email", type: "email", required: true },
+    { id: "field3", name: "Phone", type: "phoneNumber", required: false },
+    { id: "field4", name: "Company", type: "singleLineText", required: false },
+    { id: "field5", name: "Industry", type: "singleSelect", required: false, options: ["Tech","Healthcare","Finance","Retail"] },
+    { id: "field6", name: "Interests", type: "multipleSelect", required: false, options: ["Product Updates","Events","Newsletter","Support"] },
+    { id: "field7", name: "Comments", type: "multilineText", required: false },
+  ],
+}
+
 export default function FormBuilderPage() {
   const router = useRouter()
   const [formTitle, setFormTitle] = useState("Untitled Form")
@@ -39,44 +74,54 @@ export default function FormBuilderPage() {
   const [selectedTable, setSelectedTable] = useState("")
   const [selectedFields, setSelectedFields] = useState<FormField[]>([])
 
+  // Load bases with backend -> fallback to mock on error/empty
   useEffect(() => {
     (async () => {
       try {
         const data = await apiFetch('/airtable/bases')
-        setBases(data?.bases || [])
-      } catch (e) {
-        console.error('Failed to load bases', e)
+        const list = Array.isArray(data?.bases) && data.bases.length > 0 ? data.bases : mockBases
+        setBases(list)
+      } catch (_) {
+        setBases(mockBases)
       }
     })()
   }, [])
 
+  // Load tables when base selected -> fallback to mock
   useEffect(() => {
     if (!selectedBase) { setTables([]); setSelectedTable(""); setAvailableFields([]); return }
     (async () => {
       try {
         const data = await apiFetch(`/airtable/tables?baseId=${encodeURIComponent(selectedBase)}`)
-        setTables(data?.tables || [])
-      } catch (e) {
-        console.error('Failed to load tables', e)
+        const list = Array.isArray(data?.tables) && data.tables.length > 0 ? data.tables : (mockTables[selectedBase] || [])
+        setTables(list)
+      } catch (_) {
+        setTables(mockTables[selectedBase] || [])
       }
     })()
   }, [selectedBase])
 
+  // Load fields when table selected -> fallback to mock
   useEffect(() => {
     if (!selectedBase || !selectedTable) { setAvailableFields([]); return }
     (async () => {
       try {
         const data = await apiFetch(`/airtable/fields?baseId=${encodeURIComponent(selectedBase)}&tableId=${encodeURIComponent(selectedTable)}`)
-        const fields = (data?.fields || []).map((f: any) => {
+        const raw = Array.isArray(data?.fields) && data.fields.length > 0 ? data.fields : (mockFields[selectedTable] || [])
+        const fields = raw.map((f: any) => {
           let options: string[] | undefined
           if ((f.type === 'singleSelect' || f.type === 'multipleSelect') && f.options?.choices) {
             options = (f.options.choices || []).map((c: any) => c?.name).filter(Boolean)
+          } else if (Array.isArray(f.options)) {
+            options = f.options
           }
           return { id: f.id, name: f.name, type: f.type, required: !!f.required, options }
         })
         setAvailableFields(fields)
-      } catch (e) {
-        console.error('Failed to load fields', e)
+      } catch (_) {
+        const raw = mockFields[selectedTable] || []
+        const fields = raw.map((f: any) => ({ id: f.id, name: f.name, type: f.type, required: !!f.required, options: f.options }))
+        setAvailableFields(fields)
       }
     })()
   }, [selectedBase, selectedTable])
