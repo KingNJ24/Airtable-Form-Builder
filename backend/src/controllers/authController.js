@@ -54,9 +54,10 @@ export const login = (req, res) => {
 
   const state = signState(secret, { v: verifier, sc: scopes });
   const code_challenge = pkceChallenge(verifier);
+  const redirectUri = process.env.AIRTABLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/auth/callback`;
   const params = new URLSearchParams({
     client_id: process.env.AIRTABLE_CLIENT_ID || '',
-    redirect_uri: process.env.AIRTABLE_REDIRECT_URI || 'http://localhost:5000/auth/callback',
+    redirect_uri: redirectUri,
     response_type: 'code',
     scope: scopes,
     state,
@@ -87,10 +88,12 @@ export const callback = async (req, res) => {
     const clientId = process.env.AIRTABLE_CLIENT_ID || '';
     const clientSecret = process.env.AIRTABLE_CLIENT_SECRET || '';
 
+    const redirectUri = process.env.AIRTABLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/auth/callback`;
+
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: process.env.AIRTABLE_REDIRECT_URI || 'http://localhost:5000/auth/callback',
+      redirect_uri: redirectUri,
       code_verifier: parsed.v,
     });
 
